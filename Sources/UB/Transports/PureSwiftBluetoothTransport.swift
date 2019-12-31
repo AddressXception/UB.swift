@@ -77,7 +77,6 @@ public class PureSwiftBluetoothTransport {
             let advertisement = scanData.advertisementData
             let isConnectable = scanData.isConnectable
             print("BLE Central: new connection")
-            ​
             //self.discoverServices(device)
             return clientSocket
         }
@@ -118,7 +117,7 @@ public class PureSwiftBluetoothTransport {
         // register callbacks
         central.didDisconnect = {
             [weak self] peripheral in
-            let id = Addr(peripheral.identifier.bytes)
+            let id = Addr(peripheral.identifier.data)
             self?.remove(peer: id)
         }
 
@@ -141,7 +140,7 @@ public class PureSwiftBluetoothTransport {
         self.central.disconnectAll()
     }
 
-    private func add(_ characteristic: Characteristic<DarwinCentral.Peripheral>) {
+    private func add(_ characteristic: Characteristic<CentralPeripheral>) {
         let id = Addr(characteristic.peripheral.identifier.data)
 
         if peripherals[id] != nil {
