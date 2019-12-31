@@ -72,6 +72,7 @@ public class PureSwiftBluetoothTransport {
         let address = try hostController.readDeviceAddress()
 
         let clientSocket = try L2CAPSocket.lowEnergyServer(controllerAddress: address, isRandom: false, securityLevel: .low)
+        central = GATTCentral<HostController, L2CAPSocket>(hostController: hostController)
         central.newConnection = { (scanData, report) in
             let device = scanData.peripheral
             let advertisement = scanData.advertisementData
@@ -165,27 +166,57 @@ public class PureSwiftBluetoothTransport {
         PureSwiftBluetoothTransport.scanningQueue.async{
             [weak self] in
 
-            try! self?.central.scan(filterDuplicates: true, with: [PureSwiftBluetoothTransport.ubServiceUUID]) {
-                [weak self] scanData in
+            do {
 
-                let id = Addr(scanData.peripheral.identifier.data)
-                if self?.peripherals[id] != nil {
-                    return // already connected
+                #if os(macOS) || os(iOS)
+
+                try self?.central.scan(filterDuplicates: true, with: [PureSwiftBluetoothTransport.ubServiceUUID]) {
+                    [weak self] scanData in
+
+                    let id = Addr(scanData.peripheral.identifier.data)
+                    if self?.peripherals[id] != nil {
+                        return // already connected
+                    }
+
+                    self?.connect(to: scanData.peripheral)
                 }
 
-                self?.mutex.lockAsync{
-                    [weak self] in
-                    do {
-                        try self?.central.connect(to: scanData.peripheral)
-                        if let services = try self?.central.discoverServices([ PureSwiftBluetoothTransport.ubServiceUUID ], for: scanData.peripheral) {
-                            if let characteristics = try self?.central.discoverCharacteristics([PureSwiftBluetoothTransport.receiveCharacteristicUUID], for: services[0]) {
-                                self?.add(characteristics[0])
-                            }
+                #elseif os(Linux)
+
+                try self?.central.scan {
+                    [weak self] scanData in
+
+                    if scanData.advertisementData.serviceUUIDs?.contains(PureSwiftBluetoothTransport.ubServiceUUID) == true {
+
+                        let id = Addr(scanData.peripheral.identifier.data)
+                        if self?.peripherals[id] != nil {
+                            return // already connected
                         }
-                    } catch {
-                        print("connection error \(error)")
+
+                        self?.connect(to: scanData.peripheral)
                     }
                 }
+
+                #endif
+
+            } catch {
+                print("scan error: \n \(error)")
+            }
+        }
+    }
+
+    private func connect(to peripheral: CentralPeripheral) {
+        mutex.lockAsync{
+            [weak self] in
+            do {
+                try self?.central.connect(to: peripheral)
+                if let services = try self?.central.discoverServices([ PureSwiftBluetoothTransport.ubServiceUUID ], for: peripheral) {
+                    if let characteristics = try self?.central.discoverCharacteristics([PureSwiftBluetoothTransport.receiveCharacteristicUUID], for: services[0]) {
+                        self?.add(characteristics[0])
+                    }
+                }
+            } catch {
+                print("connection error: \(peripheral.identifier) \n \(error)")
             }
         }
     }
