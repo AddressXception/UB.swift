@@ -1,3 +1,5 @@
+#if os(macOS) || os(iOS)
+
 import CoreBluetooth
 import Foundation
 
@@ -237,3 +239,5 @@ extension CoreBluetoothTransport: CBPeripheralDelegate {
         // @todo figure out exactly what we will want to do here.
     }
 }
+
+#endif
